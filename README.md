@@ -226,7 +226,7 @@ Besides the local stdio server, the same tools can run as an HTTP service. See [
 
 - `npm run start:http` (or `npm run dev:http`) runs `dist/http.js`: `POST /mcp` for MCP and `GET /health`.
 - `MCP_AUTH_TOKEN` (32+ random characters) is required. The server refuses to start without it, and every `/mcp` request needs `Authorization: Bearer <token>`. There is also a per-client rate limit.
-- The Google login comes from `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REFRESH_TOKEN` (all three, or none to use the local files). Run `npm run auth` on your own machine once, then copy the values into Railway's Variables tab. Never commit them.
+- The Google login comes from `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REFRESH_TOKEN` (all three), or from `GOOGLE_OAUTH_CREDENTIALS_JSON` and `GOOGLE_OAUTH_TOKEN_JSON` (the two login files, base64 encoded; see `.env.example` for the encode commands). Set none to use the local files. Run `npm run auth` on your own machine once, then copy the values into Railway's Variables tab. Never commit them.
 - `Dockerfile` and `railway.json` are included for Railway, and `render.yaml` for Render (free plan, health check `/health`). Both platforms supply `PORT`.
 
 Local test:

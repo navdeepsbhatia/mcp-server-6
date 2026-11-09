@@ -73,7 +73,12 @@ export function readInstalledClient(credentialsPath: string): InstalledClient {
     );
   }
 
-  const root = parsed as {
+  return installedClientFromJson(parsed);
+}
+
+/** Validate parsed Desktop (installed) OAuth client JSON. Rejects a Web client. */
+function installedClientFromJson(parsed: unknown): InstalledClient {
+  const root = (parsed ?? {}) as {
     installed?: { client_id?: string; client_secret?: string };
     web?: { client_id?: string; client_secret?: string };
   };
@@ -97,37 +102,81 @@ export function readInstalledClient(credentialsPath: string): InstalledClient {
 }
 
 const ENV_LOGIN_VARS = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN"] as const;
+const ENV_JSON_VARS = ["GOOGLE_OAUTH_CREDENTIALS_JSON", "GOOGLE_OAUTH_TOKEN_JSON"] as const;
 
 /**
- * Login supplied through environment variables, used when the server is hosted.
- * Returns undefined when none are set (use the local files instead). Throws when only some are set.
- * Error messages name the variables and never contain their values.
+ * Decode an environment variable that holds a JSON file, either base64 encoded or as raw JSON.
+ * Errors name the variable and never contain its value.
+ */
+function readJsonEnv(name: string, value: string): unknown {
+  const text = value.startsWith("{") ? value : Buffer.from(value, "base64").toString("utf8");
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new ToolFailure(
+      "AUTH_MISSING",
+      `${name} is not valid base64 or JSON. Re-encode the original JSON file and set the variable again.`,
+    );
+  }
+}
+
+/**
+ * Login supplied through environment variables, used when the server is hosted. Two forms:
+ *   1. GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET + GOOGLE_REFRESH_TOKEN
+ *   2. GOOGLE_OAUTH_CREDENTIALS_JSON + GOOGLE_OAUTH_TOKEN_JSON (the two files, base64 encoded)
+ * Returns undefined when none are set (use the local files instead). Throws when a form is only
+ * partly set. Error messages name the variables and never contain their values.
  */
 export function envLogin(): { clientId: string; clientSecret: string; refreshToken: string } | undefined {
   const values = ENV_LOGIN_VARS.map((name) => envPath(name));
-  if (values.every((value) => value === undefined)) return undefined;
+  const jsonValues = ENV_JSON_VARS.map((name) => envPath(name));
+  const anySimple = values.some((value) => value !== undefined);
+  const anyJson = jsonValues.some((value) => value !== undefined);
+  if (!anySimple && !anyJson) return undefined;
 
-  const missing = ENV_LOGIN_VARS.filter((_, index) => values[index] === undefined);
-  if (missing.length > 0) {
+  // The three plain variables win when both forms are present.
+  if (anySimple || !anyJson) {
+    const missing = ENV_LOGIN_VARS.filter((_, index) => values[index] === undefined);
+    if (missing.length > 0) {
+      throw new ToolFailure(
+        "AUTH_MISSING",
+        `Google login is only partly configured. Set the missing environment variable(s): ${missing.join(", ")}.`,
+      );
+    }
+    const [clientId, clientSecret, refreshToken] = values as [string, string, string];
+    return { clientId, clientSecret, refreshToken };
+  }
+
+  const missingJson = ENV_JSON_VARS.filter((_, index) => jsonValues[index] === undefined);
+  if (missingJson.length > 0) {
     throw new ToolFailure(
       "AUTH_MISSING",
-      `Google login is only partly configured. Set the missing environment variable(s): ${missing.join(", ")}.`,
+      `Google login is only partly configured. Set the missing environment variable(s): ${missingJson.join(", ")}.`,
     );
   }
-  const [clientId, clientSecret, refreshToken] = values as [string, string, string];
-  return { clientId, clientSecret, refreshToken };
+  const [credentialsValue, tokenValue] = jsonValues as [string, string];
+  const client = installedClientFromJson(readJsonEnv("GOOGLE_OAUTH_CREDENTIALS_JSON", credentialsValue));
+  const token = readJsonEnv("GOOGLE_OAUTH_TOKEN_JSON", tokenValue) as SavedToken;
+  if (!token?.refresh_token) {
+    throw new ToolFailure(
+      "AUTH_EXPIRED",
+      "GOOGLE_OAUTH_TOKEN_JSON has no refresh_token. Run npm run auth on your own machine and encode the new token.json.",
+    );
+  }
+  return { clientId: client.clientId, clientSecret: client.clientSecret, refreshToken: token.refresh_token };
 }
 
 /** True when the Google login comes from environment variables (hosted) rather than local files. */
 function usingEnvLogin(): boolean {
-  return ENV_LOGIN_VARS.some((name) => envPath(name) !== undefined);
+  return [...ENV_LOGIN_VARS, ...ENV_JSON_VARS].some((name) => envPath(name) !== undefined);
 }
 
 /** The remedy sentence differs: a hosted server cannot open a browser. */
 function reauthHint(): string {
-  return usingEnvLogin()
-    ? "Run npm run auth on your own machine, then update GOOGLE_REFRESH_TOKEN on the server."
-    : "Run npm run auth and sign in again.";
+  if (!usingEnvLogin()) return "Run npm run auth and sign in again.";
+  return envPath("GOOGLE_OAUTH_TOKEN_JSON") !== undefined && envPath("GOOGLE_REFRESH_TOKEN") === undefined
+    ? "Run npm run auth on your own machine, then update GOOGLE_OAUTH_TOKEN_JSON on the server with the new token.json, base64 encoded."
+    : "Run npm run auth on your own machine, then update GOOGLE_REFRESH_TOKEN on the server.";
 }
 
 function readToken(tokenPath: string): SavedToken {
