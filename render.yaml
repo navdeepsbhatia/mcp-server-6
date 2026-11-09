@@ -1,0 +1,22 @@
+# Render Blueprint for google-workspace-mcp (Streamable HTTP, built from the Dockerfile).
+# Render dashboard: New > Blueprint > pick this repo. Values marked `sync: false` are asked for
+# in the dashboard on first deploy and are never stored in git.
+services:
+  - type: web
+    name: google-workspace-mcp
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # Render generates a long random value. Read it in the dashboard (Environment tab)
+      # and use it as the bearer token in your MCP client config.
+      - key: MCP_AUTH_TOKEN
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
