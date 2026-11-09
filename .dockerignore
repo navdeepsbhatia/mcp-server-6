@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+credentials
+credentials.json
+secrets
+token.json
+client_secret*.json
+*.log
+.git
+docs
+tests
+scripts

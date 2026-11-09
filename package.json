@@ -1,0 +1,32 @@
+{
+  "name": "google-workspace-mcp",
+  "version": "1.0.0",
+  "description": "Local MCP server that sends plain-text Gmail and appends text to an existing Google Doc.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:http": "node dist/http.js",
+    "dev": "tsx src/index.ts",
+    "dev:http": "tsx src/http.ts",
+    "auth": "tsx scripts/authorize.ts",
+    "test": "node --import tsx --test tests/gmail.test.ts tests/docs.test.ts tests/server.test.ts tests/auth-env.test.ts tests/http.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "^2.1.2",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "dotenv": "^17.2.3",
+    "googleapis": "^166.0.0",
+    "nodemailer": "^7.0.11",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/nodemailer": "^7.0.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
